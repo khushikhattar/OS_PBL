@@ -1,0 +1,29 @@
+=== MPI Log Started ===
+eat.
+Processor 3: Sent heartbeat.
+Processor 1: Sent heartbeat.
+Master: Listening for heartbeats for 5 seconds...
+Master: Received heartbeat from processor 2
+Master: Received heartbeat from processor 3
+Master: Received heartbeat from processor 1
+--- Round Robin Job Assignment ---
+Job 1 assigned to processor 1
+Job 2 assigned to processor 2
+Job 3 assigned to processor 3
+Job 4 assigned to processor 1
+Job 5 assigned to processor 2
+Job 6 assigned to processor 3
+Job 7 assigned to processor 1
+Job 8 assigned to processor 2
+--- Least Connection Job Assignment ---
+Job 1 assigned to processor 1 (Least Load: 0.000000)
+Job 2 assigned to processor 2 (Least Load: 0.000000)
+Job 3 assigned to processor 3 (Least Load: 0.000000)
+Job 4 assigned to processor 1 (Least Load: 1.000000)
+Job 5 assigned to processor 2 (Least Load: 1.000000)
+Job 6 assigned to processor 3 (Least Load: 1.000000)
+Job 7 assigned to processor 1 (Least Load: 2.000000)
+Job 8 assigned to processor 2 (Least Load: 2.000000)
+Total Load: 8.000000
+== Job assignment complete ==
+

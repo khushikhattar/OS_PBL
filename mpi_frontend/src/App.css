@@ -1,0 +1,14 @@
+.container {
+  padding: 2rem;
+  font-family: sans-serif;
+}
+
+.log-box {
+  background-color: #222;
+  color: #0f0;
+  padding: 1rem;
+  border-radius: 8px;
+  height: 500px;
+  overflow-y: scroll;
+  white-space: pre-wrap;
+}
