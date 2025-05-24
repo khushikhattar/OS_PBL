@@ -1,14 +1,154 @@
-.container {
-  padding: 2rem;
-  font-family: sans-serif;
+/* General resets and fonts */
+body {
+  margin: 0;
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  background: #121212;
+  color: #ddd;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
 }
 
-.log-box {
-  background-color: #222;
-  color: #0f0;
-  padding: 1rem;
+.app-container {
+  max-width: 1000px;
+  margin: 20px auto;
+  padding: 0 20px 40px 20px;
+}
+
+header {
+  text-align: center;
+  margin-bottom: 2rem;
+  color: #bbdefb;
+}
+
+header h1 {
+  font-weight: 700;
+  font-size: 2.5rem;
+  margin-bottom: 0.3rem;
+  text-shadow: 0 0 8px #42a5f5;
+}
+
+header p {
+  font-size: 1.2rem;
+  color: #90caf9;
+  font-style: italic;
+}
+
+.info-message,
+.error-message {
+  text-align: center;
+  font-size: 1.2rem;
+  padding: 15px;
+  margin: 1rem 0;
+  border-radius: 6px;
+}
+
+.info-message {
+  background-color: #1976d2;
+  color: white;
+}
+
+.error-message {
+  background-color: #d32f2f;
+  color: white;
+}
+
+.processors-section,
+.jobs-section,
+.logs-section {
+  margin-bottom: 3rem;
+  background-color: #1e1e1e;
+  padding: 20px;
+  border-radius: 10px;
+  box-shadow: 0 0 15px #0d47a1;
+}
+
+.processors-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  justify-content: center;
+}
+
+.processor-card {
+  background: #263238;
+  border-radius: 10px;
+  padding: 15px;
+  width: 220px;
+  box-shadow: 0 0 10px #37474f;
+  transition: transform 0.3s ease;
+  cursor: default;
+}
+
+.processor-card.alive {
+  border-left: 6px solid #4caf50;
+}
+
+.processor-card.dead {
+  border-left: 6px solid #f44336;
+  opacity: 0.7;
+}
+
+.processor-card:hover {
+  transform: scale(1.05);
+  box-shadow: 0 0 20px #42a5f5;
+}
+
+.processor-card h3 {
+  margin-top: 0;
+  color: #81d4fa;
+}
+
+.processor-card p {
+  margin: 6px 0;
+  font-size: 0.9rem;
+}
+
+.processor-card ul {
+  margin: 8px 0 0 16px;
+  padding-left: 0;
+  font-size: 0.85rem;
+  color: #b0bec5;
+}
+
+.jobs-table {
+  width: 100%;
+  border-collapse: collapse;
+  color: #eee;
+}
+
+.jobs-table th,
+.jobs-table td {
+  border: 1px solid #333;
+  padding: 8px 12px;
+  text-align: center;
+}
+
+.jobs-table th {
+  background-color: #1565c0;
+  font-weight: 600;
+}
+
+.jobs-table tbody tr:hover {
+  background-color: #1e88e5;
+}
+
+.logs-section pre {
+  background: #212121;
+  padding: 15px;
   border-radius: 8px;
-  height: 500px;
-  overflow-y: scroll;
-  white-space: pre-wrap;
+  max-height: 300px;
+  overflow-y: auto;
+  font-family: "Courier New", Courier, monospace;
+  font-size: 0.9rem;
+  line-height: 1.3;
+  color: #80cbc4;
+}
+
+footer {
+  text-align: center;
+  margin-top: 4rem;
+  font-size: 0.9rem;
+  color: #90a4ae;
+  border-top: 1px solid #37474f;
+  padding-top: 15px;
 }

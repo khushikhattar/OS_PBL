@@ -1,35 +1,40 @@
 #include <mpi.h>
 #include <iostream>
-#include <vector>
 #include <fstream>
-#include <unistd.h>
+#include <vector>
 #include <climits>
+#include <unistd.h>
+#include <chrono>
+#include <ctime>
+#include <sstream>
+#include <nlohmann/json.hpp>
+
+using json = nlohmann::json;
+void log_message(std::ofstream &logfile, const std::string &msg)
+{
+    auto now = std::chrono::system_clock::now();
+    std::time_t now_c = std::chrono::system_clock::to_time_t(now);
+    logfile << std::ctime(&now_c) << ": " << msg << std::endl;
+}
 
 const int num_jobs = 8;
 const int heartbeat_tag = 99;
+const int update_tag = 88;
 
-std::string log_file = "../server/logs/mpi.log"; // Windows-accessible path
-
-void log(const std::string &message)
+void assign_jobs_round_robin(const std::vector<int> &processors, std::ofstream &logfile, std::vector<std::string> &assignments)
 {
-    std::ofstream logfile(log_file, std::ios::app);
-    logfile << message << std::endl;
-    logfile.close();
-}
-
-void assign_jobs_round_robin(const std::vector<int> &processors)
-{
-    log("--- Round Robin Job Assignment ---");
+    logfile << "--- Round Robin Job Assignment ---\n";
     for (int i = 0; i < num_jobs; i++)
     {
-        int assigned = processors[i % processors.size()];
-        log("Job " + std::to_string(i + 1) + " assigned to processor " + std::to_string(assigned));
+        int assigned_processor = processors[i % processors.size()];
+        logfile << "Job " << i + 1 << " assigned to processor " << assigned_processor << std::endl;
+        assignments.push_back("Job " + std::to_string(i + 1) + " -> P" + std::to_string(assigned_processor));
     }
 }
 
-void assign_jobs_least_connection(const std::vector<int> &processors, std::vector<double> &loads)
+void assign_jobs_least_connection(const std::vector<int> &processors, std::vector<double> &loads, std::ofstream &logfile, std::vector<std::string> &assignments)
 {
-    log("--- Least Connection Job Assignment ---");
+    logfile << "--- Least Connection Job Assignment ---\n";
     for (int i = 0; i < num_jobs; i++)
     {
         int chosen = -1;
@@ -42,22 +47,40 @@ void assign_jobs_least_connection(const std::vector<int> &processors, std::vecto
                 chosen = processors[j];
             }
         }
-        log("Job " + std::to_string(i + 1) + " assigned to processor " + std::to_string(chosen) + " (Least Load: " + std::to_string(min_load) + ")");
-        loads[chosen - 1] += 1.0; // Fix index
+        logfile << "Job " << i + 1 << " assigned to processor " << chosen << " (Least Load: " << min_load << ")\n";
+        loads[chosen - 1] += 1.0;
+        assignments.push_back("Job " + std::to_string(i + 1) + " -> P" + std::to_string(chosen));
     }
+}
+
+void write_json_status(const std::vector<int> &active_processors, const std::vector<std::string> &assignments)
+{
+    json j;
+    j["active_processors"] = active_processors;
+    j["job_assignments"] = assignments;
+
+    std::ofstream file("../server/system-state.json");
+    file << j.dump(4);
+    file.close();
 }
 
 void master_process(int num_processors)
 {
+    std::ofstream logfile("../server/logs/mpi.log", std::ios::app);
+    if (!logfile.is_open())
+        return;
+
+    logfile << "Master started\n";
+
     MPI_Status status;
-    std::vector<int> processors(num_processors);
-    for (int i = 0; i < num_processors; i++)
-        processors[i] = i + 1;
+    std::vector<int> processors;
+    std::vector<int> alive(num_processors, 0);
 
-    std::vector<double> loads(num_processors, 0.0);
-    double start = MPI_Wtime(), timeout = 5.0;
+    double start = MPI_Wtime();
+    double timeout = 5.0;
 
-    log("Master: Listening for heartbeats for 5 seconds...");
+    logfile << "Master: Listening for heartbeats...\n";
+
     while (MPI_Wtime() - start < timeout)
     {
         for (int i = 1; i <= num_processors; i++)
@@ -67,43 +90,52 @@ void master_process(int num_processors)
             if (flag)
             {
                 MPI_Recv(&heartbeat, 1, MPI_INT, i, heartbeat_tag, MPI_COMM_WORLD, &status);
-                log("Master: Received heartbeat from processor " + std::to_string(i));
+                logfile << "Heartbeat from processor " << i << "\n";
+                alive[i - 1] = 1;
             }
         }
         sleep(1);
     }
 
-    assign_jobs_round_robin(processors);
-    assign_jobs_least_connection(processors, loads);
+    for (int i = 0; i < num_processors; i++)
+    {
+        if (alive[i])
+            processors.push_back(i + 1);
+    }
 
-    double total = 0;
-    for (double l : loads)
-        total += l;
-    log("Total Load: " + std::to_string(total));
-    log("== Job assignment complete ==\n");
+    std::vector<double> loads(num_processors, 0.0);
+    std::vector<std::string> assignments;
+
+    assign_jobs_round_robin(processors, logfile, assignments);
+    assign_jobs_least_connection(processors, loads, logfile, assignments);
+
+    write_json_status(processors, assignments);
+    logfile << "Master done.\n";
+    logfile.close();
 }
 
 void slave_process(int rank)
 {
+    std::ofstream logfile("../server/logs/mpi.log", std::ios::app);
+    if (!logfile.is_open())
+        return;
+
     int heartbeat = 1;
     MPI_Send(&heartbeat, 1, MPI_INT, 0, heartbeat_tag, MPI_COMM_WORLD);
-    log("Processor " + std::to_string(rank) + ": Sent heartbeat.");
+    logfile << "Processor " << rank << ": Sent heartbeat.\n";
+
+    logfile.close();
 }
 
 int main(int argc, char *argv[])
 {
     MPI_Init(&argc, &argv);
-
     int rank, size;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-    // Clear the log file
     if (rank == 0)
     {
-        std::ofstream logfile(log_file);
-        logfile << "=== MPI Log Started ===\n";
-        logfile.close();
         master_process(size - 1);
     }
     else
