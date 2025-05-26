@@ -4,22 +4,32 @@
         2,
         3
     ],
-    "job_assignments": [
-        "Job 1 -> P1",
-        "Job 2 -> P2",
-        "Job 3 -> P3",
-        "Job 4 -> P1",
-        "Job 5 -> P2",
-        "Job 6 -> P3",
-        "Job 7 -> P1",
-        "Job 8 -> P2",
-        "Job 1 -> P1",
-        "Job 2 -> P2",
-        "Job 3 -> P3",
-        "Job 4 -> P1",
-        "Job 5 -> P2",
-        "Job 6 -> P3",
-        "Job 7 -> P1",
-        "Job 8 -> P2"
-    ]
+    "least_connection": {
+        "job_assignments": [
+            "Job 1 -> P1",
+            "Job 2 -> P2",
+            "Job 3 -> P3",
+            "Job 4 -> P1",
+            "Job 5 -> P2",
+            "Job 6 -> P3",
+            "Job 7 -> P1",
+            "Job 8 -> P2"
+        ],
+        "strategy": "LeastConnection",
+        "total_load": 8.0
+    },
+    "round_robin": {
+        "job_assignments": [
+            "Job 1 -> P1",
+            "Job 2 -> P2",
+            "Job 3 -> P3",
+            "Job 4 -> P1",
+            "Job 5 -> P2",
+            "Job 6 -> P3",
+            "Job 7 -> P1",
+            "Job 8 -> P2"
+        ],
+        "strategy": "RoundRobin",
+        "total_load": 8.0
+    }
 }

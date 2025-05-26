@@ -14,52 +14,64 @@ void log_message(std::ofstream &logfile, const std::string &msg)
 {
     auto now = std::chrono::system_clock::now();
     std::time_t now_c = std::chrono::system_clock::to_time_t(now);
-    logfile << std::ctime(&now_c) << ": " << msg << std::endl;
+    std::string time_str = std::string(std::ctime(&now_c));
+    time_str.erase(time_str.length() - 1); // remove newline
+    logfile << "[" << time_str << "] " << msg << std::endl;
+    logfile.flush();
 }
 
 const int num_jobs = 8;
 const int heartbeat_tag = 99;
-const int update_tag = 88;
 
 void assign_jobs_round_robin(const std::vector<int> &processors, std::ofstream &logfile, std::vector<std::string> &assignments)
 {
-    logfile << "--- Round Robin Job Assignment ---\n";
+    logfile << "--- Round Robin Job Assignment ---" << std::endl;
     for (int i = 0; i < num_jobs; i++)
     {
         int assigned_processor = processors[i % processors.size()];
-        logfile << "Job " << i + 1 << " assigned to processor " << assigned_processor << std::endl;
+        logfile << "Job " << i + 1 << " assigned to processor " << assigned_processor << " using round-robin" << std::endl;
         assignments.push_back("Job " + std::to_string(i + 1) + " -> P" + std::to_string(assigned_processor));
     }
+    logfile.flush();
 }
 
 void assign_jobs_least_connection(const std::vector<int> &processors, std::vector<double> &loads, std::ofstream &logfile, std::vector<std::string> &assignments)
 {
-    logfile << "--- Least Connection Job Assignment ---\n";
+    logfile << "--- Least Connection Job Assignment ---" << std::endl;
     for (int i = 0; i < num_jobs; i++)
     {
-        int chosen = -1;
+        int chosen_index = -1;
         double min_load = INT_MAX;
         for (size_t j = 0; j < processors.size(); j++)
         {
             if (loads[j] < min_load)
             {
                 min_load = loads[j];
-                chosen = processors[j];
+                chosen_index = j;
             }
         }
-        logfile << "Job " << i + 1 << " assigned to processor " << chosen << " (Least Load: " << min_load << ")\n";
-        loads[chosen - 1] += 1.0;
-        assignments.push_back("Job " + std::to_string(i + 1) + " -> P" + std::to_string(chosen));
-    }
-}
+        int chosen_processor = processors[chosen_index];
+        logfile << "Job " << i + 1 << " assigned to processor " << chosen_processor
+                << " using least-connections (Least Load: " << min_load << ")" << std::endl;
 
-void write_json_status(const std::vector<int> &active_processors, const std::vector<std::string> &assignments)
+        loads[chosen_index] += 1.0;
+        assignments.push_back("Job " + std::to_string(i + 1) + " -> P" + std::to_string(chosen_processor));
+    }
+    logfile.flush();
+}
+void write_json_status(const std::vector<int> &active_processors, const std::vector<std::string> &assignments, const std::string &strategy)
 {
     json j;
     j["active_processors"] = active_processors;
     j["job_assignments"] = assignments;
+    j["strategy"] = strategy;
 
-    std::ofstream file("../server/system-state.json");
+    std::ofstream file("../server/system-state.json", std::ios::trunc);
+    if (!file.is_open())
+    {
+        std::cerr << "Failed to open system-state.json for writing\n";
+        return;
+    }
     file << j.dump(4);
     file.close();
 }
@@ -68,9 +80,12 @@ void master_process(int num_processors)
 {
     std::ofstream logfile("../server/logs/mpi.log", std::ios::app);
     if (!logfile.is_open())
+    {
+        std::cerr << "Failed to open log file." << std::endl;
         return;
+    }
 
-    logfile << "Master started\n";
+    log_message(logfile, "Master started");
 
     MPI_Status status;
     std::vector<int> processors;
@@ -79,7 +94,7 @@ void master_process(int num_processors)
     double start = MPI_Wtime();
     double timeout = 5.0;
 
-    logfile << "Master: Listening for heartbeats...\n";
+    log_message(logfile, "Master: Listening for heartbeats for " + std::to_string((int)timeout) + " seconds...");
 
     while (MPI_Wtime() - start < timeout)
     {
@@ -90,7 +105,7 @@ void master_process(int num_processors)
             if (flag)
             {
                 MPI_Recv(&heartbeat, 1, MPI_INT, i, heartbeat_tag, MPI_COMM_WORLD, &status);
-                logfile << "Heartbeat from processor " << i << "\n";
+                log_message(logfile, "Master: Received heartbeat from processor " + std::to_string(i));
                 alive[i - 1] = 1;
             }
         }
@@ -103,28 +118,60 @@ void master_process(int num_processors)
             processors.push_back(i + 1);
     }
 
-    std::vector<double> loads(num_processors, 0.0);
-    std::vector<std::string> assignments;
+    if (processors.empty())
+    {
+        log_message(logfile, "No processors alive. Exiting job assignment.");
+        logfile.close();
+        return;
+    }
 
-    assign_jobs_round_robin(processors, logfile, assignments);
-    assign_jobs_least_connection(processors, loads, logfile, assignments);
+    std::vector<std::string> rr_assignments;
+    assign_jobs_round_robin(processors, logfile, rr_assignments);
+    double total_load_rr = (double)num_jobs;
+    log_message(logfile, "Total Load (Round Robin): " + std::to_string(total_load_rr));
 
-    write_json_status(processors, assignments);
-    logfile << "Master done.\n";
+    std::vector<double> loads(processors.size(), 0.0);
+    std::vector<std::string> lc_assignments;
+    assign_jobs_least_connection(processors, loads, logfile, lc_assignments);
+
+    double total_load_lc = 0.0;
+    for (double l : loads)
+        total_load_lc += l;
+
+    log_message(logfile, "Total Load (Least Connection): " + std::to_string(total_load_lc));
+
+    // Write JSON for both strategies
+    json j;
+    j["active_processors"] = processors;
+    j["round_robin"] = {
+        {"job_assignments", rr_assignments},
+        {"strategy", "RoundRobin"},
+        {"total_load", total_load_rr}};
+    j["least_connection"] = {
+        {"job_assignments", lc_assignments},
+        {"strategy", "LeastConnection"},
+        {"total_load", total_load_lc}};
+
+    std::ofstream file("../server/system-state.json", std::ios::trunc);
+    if (!file.is_open())
+    {
+        std::cerr << "Failed to open system-state.json for writing\n";
+    }
+    else
+    {
+        file << j.dump(4);
+        file.close();
+    }
+
+    log_message(logfile, "Master done.");
     logfile.close();
 }
 
 void slave_process(int rank)
 {
-    std::ofstream logfile("../server/logs/mpi.log", std::ios::app);
-    if (!logfile.is_open())
-        return;
 
     int heartbeat = 1;
     MPI_Send(&heartbeat, 1, MPI_INT, 0, heartbeat_tag, MPI_COMM_WORLD);
-    logfile << "Processor " << rank << ": Sent heartbeat.\n";
-
-    logfile.close();
 }
 
 int main(int argc, char *argv[])
